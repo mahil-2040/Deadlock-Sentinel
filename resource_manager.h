@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <iostream>
+#include <mutex>
+#include <condition_variable>
 
 class ResourceManager {
 private:
@@ -12,6 +14,8 @@ private:
     std::vector<std::vector<int>> max_matrix;
     std::vector<std::vector<int>> allocation;
     std::vector<std::vector<int>> need;
+    std::mutex mtx;
+    std::condition_variable cv;
 
     void calculateNeed() {
         for (int i = 0; i < numProcesses; i++) {
@@ -19,6 +23,39 @@ private:
                 need[i][j] = max_matrix[i][j] - allocation[i][j];
             }
         }
+    }
+
+    bool checkSafeState() {
+        std::vector<int> work = available;
+        std::vector<bool> finish(numProcesses, false);
+
+        int count = 0;
+        while (count < numProcesses) {
+            bool found = false;
+            for (int i = 0; i < numProcesses; i++) {
+                if (!finish[i]) {
+                    bool canAllocate = true;
+                    for (int j = 0; j < numResources; j++) {
+                        if (need[i][j] > work[j]) {
+                            canAllocate = false;
+                            break;
+                        }
+                    }
+                    if (canAllocate) {
+                        for (int j = 0; j < numResources; j++) {
+                            work[j] += allocation[i][j];
+                        }
+                        finish[i] = true;
+                        found = true;
+                        count++;
+                    }
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
     }
 
 public:
@@ -33,6 +70,7 @@ public:
     }
 
     bool isSafeState() {
+        std::lock_guard<std::mutex> lock(mtx);
         std::vector<int> work = available;
         std::vector<bool> finish(numProcesses, false);
         std::vector<int> safeSequence;
@@ -75,50 +113,64 @@ public:
     }
 
     bool request(int processID, std::vector<int> requestVec) {
+        std::unique_lock<std::mutex> lock(mtx);
+
         for (int j = 0; j < numResources; j++) {
             if (requestVec[j] > need[processID][j]) {
-                std::cout << "Error: Process " << processID << " exceeded max claim" << std::endl;
+                std::cout << "[P" << processID << "] Error: exceeded max claim" << std::endl;
                 return false;
             }
         }
 
-        for (int j = 0; j < numResources; j++) {
-            if (requestVec[j] > available[j]) {
-                std::cout << "Process " << processID << " must wait (resources not available)" << std::endl;
-                return false;
-            }
-        }
-
-        for (int j = 0; j < numResources; j++) {
-            available[j] -= requestVec[j];
-            allocation[processID][j] += requestVec[j];
-            need[processID][j] -= requestVec[j];
-        }
-
-        if (isSafeState()) {
-            std::cout << "Request granted for Process " << processID << std::endl;
-            return true;
-        } else {
+        while (true) {
+            bool resourcesAvailable = true;
             for (int j = 0; j < numResources; j++) {
-                available[j] += requestVec[j];
-                allocation[processID][j] -= requestVec[j];
-                need[processID][j] += requestVec[j];
+                if (requestVec[j] > available[j]) {
+                    resourcesAvailable = false;
+                    break;
+                }
             }
-            std::cout << "Request denied (would lead to unsafe state) for Process " << processID << std::endl;
-            return false;
+
+            if (!resourcesAvailable) {
+                std::cout << "[P" << processID << "] Waiting for resources..." << std::endl;
+                cv.wait(lock);
+                continue;
+            }
+
+            for (int j = 0; j < numResources; j++) {
+                available[j] -= requestVec[j];
+                allocation[processID][j] += requestVec[j];
+                need[processID][j] -= requestVec[j];
+            }
+
+            if (checkSafeState()) {
+                std::cout << "[P" << processID << "] Request granted" << std::endl;
+                return true;
+            } else {
+                for (int j = 0; j < numResources; j++) {
+                    available[j] += requestVec[j];
+                    allocation[processID][j] -= requestVec[j];
+                    need[processID][j] += requestVec[j];
+                }
+                std::cout << "[P" << processID << "] Request denied (unsafe), waiting..." << std::endl;
+                cv.wait(lock);
+            }
         }
     }
 
     void release(int processID, std::vector<int> releaseVec) {
+        std::lock_guard<std::mutex> lock(mtx);
         for (int j = 0; j < numResources; j++) {
             available[j] += releaseVec[j];
             allocation[processID][j] -= releaseVec[j];
             need[processID][j] += releaseVec[j];
         }
-        std::cout << "Process " << processID << " released resources" << std::endl;
+        std::cout << "[P" << processID << "] Released resources" << std::endl;
+        cv.notify_all();
     }
 
     void printState() {
+        std::lock_guard<std::mutex> lock(mtx);
         std::cout << "\n=== Current System State ===" << std::endl;
         std::cout << "Available: ";
         for (int j = 0; j < numResources; j++) {
@@ -141,6 +193,12 @@ public:
             std::cout << std::endl;
         }
         std::cout << "============================\n" << std::endl;
+    }
+
+    int getNumResources() { return numResources; }
+    std::vector<int> getNeed(int processID) { 
+        std::lock_guard<std::mutex> lock(mtx);
+        return need[processID]; 
     }
 };
 
