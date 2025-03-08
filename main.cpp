@@ -88,6 +88,14 @@ int main() {
     rm->dumpState();
     rm->generateDotFile("allocation_graph.dot");
 
+    cout << "\n=== Admin Feature: Force Reclaim Demo ===" << endl;
+    int hoggingProcess = rm->getProcessWithMostResources();
+    if (hoggingProcess >= 0) {
+        cout << "Process P" << hoggingProcess << " is holding the most resources." << endl;
+        rm->forceReclaim(hoggingProcess);
+        rm->printState();
+    }
+
     delete rm;
     return 0;
 }

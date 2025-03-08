@@ -278,6 +278,43 @@ public:
         lock_guard<mutex> lock(mtx);
         return need[processID]; 
     }
+
+    void forceReclaim(int processID) {
+        lock_guard<mutex> lock(mtx);
+        cout << "\n!!! FORCE RECLAIM: Terminating Process " << processID << " !!!" << endl;
+        
+        cout << "Reclaiming resources: ";
+        for (int j = 0; j < numResources; j++) {
+            if (allocation[processID][j] > 0) {
+                cout << "R" << j << "(" << allocation[processID][j] << ") ";
+                available[j] += allocation[processID][j];
+            }
+            need[processID][j] += allocation[processID][j];
+            allocation[processID][j] = 0;
+        }
+        cout << endl;
+        
+        cout << "Process " << processID << " killed and resources returned to pool." << endl;
+        cv.notify_all();
+    }
+
+    int getProcessWithMostResources() {
+        lock_guard<mutex> lock(mtx);
+        int maxProcess = -1;
+        int maxResources = 0;
+        
+        for (int i = 0; i < numProcesses; i++) {
+            int total = 0;
+            for (int j = 0; j < numResources; j++) {
+                total += allocation[i][j];
+            }
+            if (total > maxResources) {
+                maxResources = total;
+                maxProcess = i;
+            }
+        }
+        return maxProcess;
+    }
 };
 
 #endif
