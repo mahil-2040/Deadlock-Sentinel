@@ -1,4 +1,4 @@
-# SafeState: Multi-Threaded Resource Allocator
+# Deadlock-Sentinel: Multi-Threaded Resource Allocator
 
 A C++17 implementation of the Banker's Algorithm with multi-threading, visualization, and recovery features.
 
