@@ -38,6 +38,41 @@ dot -Tpng allocation_graph.dot -o graph.png
 
 ## Example Output
 
+### Resource Allocation Graph (PNG)
+
+![Resource Allocation Graph](graph.png)
+
+### Generated .dot File
+
+```dot
+digraph RAG {
+    rankdir=LR;
+    node [shape=circle]; P0 P1 P2 P3 P4 ;
+    node [shape=box]; R0 R1 R2 ;
+    R1 -> P0 [label="2"];
+    R0 -> P1 [label="1"];
+    R1 -> P1 [label="1"];
+    R2 -> P1 [label="2"];
+    R2 -> P2 [label="2"];
+    R0 -> P3 [label="2"];
+    R0 -> P4 [label="1"];
+    R1 -> P4 [label="1"];
+    P0 -> R0 [label="7", style=dashed];
+    P0 -> R1 [label="3", style=dashed];
+    P0 -> R2 [label="3", style=dashed];
+    P1 -> R0 [label="2", style=dashed];
+    P1 -> R1 [label="1", style=dashed];
+    P2 -> R0 [label="9", style=dashed];
+    P3 -> R1 [label="4", style=dashed];
+    P3 -> R2 [label="2", style=dashed];
+    P4 -> R0 [label="3", style=dashed];
+    P4 -> R1 [label="2", style=dashed];
+    P4 -> R2 [label="3", style=dashed];
+}
+```
+
+### Console Output
+
 ```
 === SafeState: Multi-Threaded Simulation ===
 [P0] Requesting: 1 2 0 
